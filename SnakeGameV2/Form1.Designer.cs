@@ -128,7 +128,7 @@
             panelShop.Controls.Add(groupYellow);
             panelShop.Controls.Add(groupCyan);
             panelShop.Controls.Add(groupGreen);
-            panelShop.Location = new Point(159, 56);
+            panelShop.Location = new Point(-1, -1);
             panelShop.Margin = new Padding(100, 100, 100, 300);
             panelShop.Name = "panelShop";
             panelShop.Padding = new Padding(1);
@@ -328,9 +328,10 @@
             panelPause.BorderStyle = BorderStyle.FixedSingle;
             panelPause.Controls.Add(lblPause);
             panelPause.Controls.Add(btnReplay);
+            panelPause.Controls.Add(panelShop);
             panelPause.Controls.Add(btnPlay);
             panelPause.Controls.Add(btnStop);
-            panelPause.Location = new Point(159, 56);
+            panelPause.Location = new Point(132, 62);
             panelPause.Margin = new Padding(0);
             panelPause.Name = "panelPause";
             panelPause.Size = new Size(769, 460);
@@ -514,7 +515,7 @@
             gameArea.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             gameArea.BackColor = Color.Black;
             gameArea.BorderStyle = BorderStyle.FixedSingle;
-            gameArea.Location = new Point(159, 56);
+            gameArea.Location = new Point(132, 62);
             gameArea.Margin = new Padding(100);
             gameArea.Name = "gameArea";
             gameArea.Size = new Size(769, 460);
@@ -533,7 +534,7 @@
             panelMainMenu.Controls.Add(btnShop);
             panelMainMenu.Controls.Add(btnExit);
             panelMainMenu.Controls.Add(btnStart);
-            panelMainMenu.Location = new Point(159, 56);
+            panelMainMenu.Location = new Point(132, 62);
             panelMainMenu.Name = "panelMainMenu";
             panelMainMenu.Size = new Size(769, 460);
             panelMainMenu.TabIndex = 37;
@@ -558,7 +559,6 @@
             ClientSize = new Size(1004, 587);
             Controls.Add(panelSaveLoad);
             Controls.Add(panelMainMenu);
-            Controls.Add(panelShop);
             Controls.Add(btnback);
             Controls.Add(panelPause);
             Controls.Add(panelHighest);
