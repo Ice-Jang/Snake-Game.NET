@@ -11,67 +11,75 @@ namespace SnakeGameV2
     // Controller: จัดการสถานะเกมทั้งหมด (ไม่ยุ่งกับการวาด)
     internal class SnakeGameController
     {
-        public List<Point> Snake { get; private set; } = new(); // ตำแหน่ง segment ของงู
-        public Point Food { get; private set; }                 // ตำแหน่งอาหาร
-        public string Direction { get; private set; } = "Right";// ทิศทางปัจจุบัน
-        public int Score { get; private set; } = 0;             // คะแนนปัจจุบัน
-        public int BestScore { get; private set; } = 0;         // คะแนนสูงสุด
-        public int Money { get; set; } = 0;             // เงินผู้เล่น
-        public int Speed { get; set; } = 110;
-        public bool IsDead { get; private set; } = false;
+        public List<Point> Snake { get; private set; } = new(); // รายการตำแหน่ง segment ของงู (หัวอยู่ index 0)
+        public Point Food { get; private set; }                 // จุดตำแหน่งอาหารปัจจุบัน
+        public string Direction { get; private set; } = "Right";// ทิศทางที่งูกำลังเคลื่อนที่อยู่
+        public int Score { get; private set; } = 0;             // คะแนนที่สะสมในรอบนี้
+        public int BestScore { get; private set; } = 0;         // คะแนนสูงสุดที่เคยทำได้
+        public int Money { get; set; } = 0;                     // เงินสะสมของผู้เล่น (ใช้ซื้อ skin ฯลฯ)
+        public int Speed { get; set; } = 110;                   // ความเร็วเกม (delay timer)
+        public bool IsDead { get; private set; } = false;       // flag บอกว่างูตายหรือยัง
 
-        private readonly Random rand = new Random();            // ตัวสุ่มใช้ในหลายจุด
-        private readonly int gridCols;                          // จำนวนคอลัมน์ของ grid
+        private readonly Random rand = new Random();            // ตัวสุ่ม ใช้กับการ spawn อาหาร
+        private readonly int gridCols;                          // จำนวนคอลัมน์ของแผง grid
         private readonly int gridRows;                          // จำนวนแถวของ grid
+        public int GridCols => gridCols;                        // expose จำนวนคอลัมน์ให้ renderer ใช้
+        public int GridRows => gridRows;                        // expose จำนวนแถวให้ renderer ใช้
 
-        // Events ให้ UI subscribe เพื่ออัปเดตหรือแสดงผล
-        public event Action? GameUpdated;                       // เรียกเมื่อสถานะเปลี่ยน (เช่น move / spawn)
-        public event Action? GameOver;                          // เรียกเมื่อเกมจบ
-        public event Action<Point>? FoodEaten;
-        public event Action? OnEat;
-        public event Action? OnDie;
+        // Event ที่ UI หรือ Renderer จะ subscribe เพื่ออัปเดตหน้าจอแบบเรียลไทม์
+        public event Action? GameUpdated;                       // เรียกเมื่อสถานะเกมเปลี่ยน (งูขยับ, spawn อาหาร)
+        public event Action<Point>? FoodEaten;                  // เรียกเมื่อกินอาหาร (ส่งตำแหน่งอาหาร)
+        public event Action? OnEat;                             // เรียกเมื่อกินอาหาร (เสียง/แอนิเมชัน)
+        public event Action? OnDie;                             // เรียกเมื่อเกิดเหตุการณ์งูตาย
 
-        // สร้าง controller ระบุขนาด grid (cols, rows)
+        // สร้าง Controller พร้อมกำหนดขนาด grid
         public SnakeGameController(int cols, int rows)
         {
-            gridCols = cols; gridRows = rows;
+            gridCols = cols; // ตั้งค่าคอลัมน์ทั้งหมดของเกม
+            gridRows = rows; // ตั้งค่าแถวทั้งหมดของเกม
         }
 
-        // เริ่มเกมใหม่ (รีเซ็ตสถานะ)
+        // เริ่มเกมใหม่ (รีเซ็ตทุกค่า)
         public void StartNewGame(int initialLen = 3)
         {
-            Score = 0; Direction = "Right"; Snake.Clear(); // รีเซ็ตสถานะ
-            // สร้างงูเริ่มต้นตรงกลาง
-            int cx = Math.Max(2, gridCols / 4);
-            int cy = Math.Max(2, gridRows / 2);
-            for (int i = 0; i < initialLen; i++)
-                Snake.Add(new Point(cx - i, cy)); // เพิ่ม segment (หางที่ index end)
+            Score = 0;                    // รีเซ็ตคะแนน
+            Direction = "Right";          // ทิศเริ่มต้นงูไปทางขวา
+            Snake.Clear();                // ล้างตำแหน่งงูทั้งหมด
 
-            SpawnFood(); // สร้างอาหาร
-            GameUpdated?.Invoke(); // แจ้ง UI ให้รีเฟรช
+            // สร้างงูเริ่มต้นบริเวณกลาง map
+            int cx = Math.Max(2, gridCols / 4); // จุดเริ่มต้น X (เลื่อนจากซ้ายมาหน่อยเพื่อให้เล่นง่าย)
+            int cy = Math.Max(2, gridRows / 2); // จุดเริ่มต้น Y (กลาง map)
+
+            // เพิ่ม segment ของงู (หัว → หาง)
+            for (int i = 0; i < initialLen; i++)
+                Snake.Add(new Point(cx - i, cy));  // เช่น (10,10), (9,10), (8,10)
+
+            SpawnFood();        // สุ่มสร้างอาหารในตำแหน่งที่ไม่ชนงู
+            GameUpdated?.Invoke(); // บอก UI ให้วาดเฟรมแรกของเกมใหม่
         }
 
-        // เปลี่ยนทิศทาง (รับ string เพื่อความเข้ากับโค้ดเดิม)
+        // เปลี่ยนทิศทางตาม input
         public void ChangeDirection(string newDir)
         {
-            // ป้องกันย้อนศรตรงกัน (เช่น Left <-> Right)
+            // ป้องกันการย้อนศร → ถ้าย้อนทิศตรงกัน ให้ไม่รับคำสั่ง
             if ((newDir == "Left" && Direction == "Right") ||
                 (newDir == "Right" && Direction == "Left") ||
                 (newDir == "Up" && Direction == "Down") ||
                 (newDir == "Down" && Direction == "Up"))
                 return;
-            Direction = newDir;
+
+            Direction = newDir;  // ตั้งทิศใหม่ (ปลอดภัย)
         }
 
-        // อัปเดตสถานะเกมหนึ่ง step (เรียกโดย timer)
+        // ฟังก์ชันหลักของเกม เรียกโดย Timer ทุก tick
         public void Update()
         {
-            if (Snake.Count == 0) return; // ถ้าไม่มีงู ไม่ทำอะไร
+            if (Snake.Count == 0) return; // ถ้าเกิดงูว่างเปล่า ไม่น่าจะเกิด แต่ป้องกัน null state
 
-            Point head = Snake[0];                // หาตำแหน่งหัวปัจจุบัน
-            Point newHead = new Point(head.X, head.Y); // คัดลอกเพื่อคำนวณตำแหน่งใหม่
+            Point head = Snake[0];        // ตำแหน่งหัวปัจจุบันของงู
+            Point newHead = new Point(head.X, head.Y); // copy ตำแหน่ง เพื่อใช้คำนวณตำแหน่งใหม่
 
-            // คำนวณ newHead ตามทิศทาง
+            // คำนวณตำแหน่งใหม่ตามทิศทาง
             switch (Direction)
             {
                 case "Up": newHead.Y -= 1; break;
@@ -80,85 +88,89 @@ namespace SnakeGameV2
                 case "Right": newHead.X += 1; break;
             }
 
-            // ตรวจชนขอบกริด -> ถ้าชน ให้จบเกม
-            if (newHead.X < 0 || newHead.Y < 0 || newHead.X >= gridCols || newHead.Y >= gridRows)
+            // ตรวจชนขอบ map → งูตาย
+            if (newHead.X < 0 || newHead.Y < 0 ||
+                newHead.X >= gridCols || newHead.Y >= gridRows)
             {
-                OnDie?.Invoke(); // 🔥 แจ้งว่า "ตายแล้ว"
-                IsDead = true;
+                OnDie?.Invoke(); // แจ้ง renderer ให้แสดง death effect
+                IsDead = true;   // ตั้ง flag ว่า dead แล้ว
                 return;
             }
 
-            // ตรวจชนตัวเอง -> ถ้าชน ให้จบเกม
+            // ตรวจชนตัวเอง → งูตาย
             if (Snake.Contains(newHead))
             {
-                OnDie?.Invoke(); // 🔥 แจ้งว่า "ตายแล้ว"
+                OnDie?.Invoke();
                 IsDead = true;
                 return;
             }
 
-            // เพิ่มหัวใหม่เข้า list
+            // แทรกหัวใหม่เข้า list (ด้านหน้า)
             Snake.Insert(0, newHead);
 
-            // ถ้า newHead == Food -> กินอาหาร (ไม่ลบหาง)
+            // ตรวจว่ากินอาหารหรือไม่
             if (newHead == Food)
             {
-                OnEat?.Invoke(); // 🔥 แจ้งว่า "กินแล้ว"
-                FoodEaten?.Invoke(Food);   // <<< แจ้ง UI ว่าอาหารถูกกินแล้ว
-                Score += 10;                     // เพิ่มคะแนน
-                Money += 1;                      // ได้เงิน
-                if (Score > BestScore) { BestScore = Score; } // อัปเดต highscore
-                SpawnFood();                     // สร้างอาหารใหม่
+                OnEat?.Invoke();     // แจ้ง renderer/UI ให้เล่นแอนิเมชัน effect
+                FoodEaten?.Invoke(Food); // ส่งตำแหน่งอาหารให้ renderer
+                Score += 10;         // เพิ่มคะแนน
+                Money += 1;          // เพิ่มเงิน 1
+                if (Score > BestScore) BestScore = Score; // อัปเดต highscore
+
+                SpawnFood();         // สร้างอาหารใหม่
             }
             else
             {
-                Snake.RemoveAt(Snake.Count - 1); // ถ้าไม่กิน -> ลบหาง (เคลื่อน)
+                Snake.RemoveAt(Snake.Count - 1); // ถ้าไม่ได้กิน → ลบหาง (ทำให้เหมือนเคลื่อนที่)
             }
 
-            GameUpdated?.Invoke(); // แจ้ง UI ให้ redraw
+            GameUpdated?.Invoke(); // แจ้ง Renderer ให้วาดเฟรมใหม่
         }
 
-        // สร้างอาหารในตำแหน่งสุ่มที่ไม่ชนงู
+        // สุ่มสร้างอาหารในตำแหน่งที่ไม่ทับงู
         private void SpawnFood()
         {
             Point p;
             do
             {
-                p = new Point(rand.Next(0, gridCols), rand.Next(0, gridRows));
-            } while (Snake.Contains(p));
-            Food = p;
+                p = new Point(rand.Next(0, gridCols), rand.Next(0, gridRows)); // สุ่มคู่อันดับ
+            } while (Snake.Contains(p)); // ห้ามอาหารซ้อนบนตัวงู
+
+            Food = p; // ตั้งค่าสำเร็จ
         }
 
-        // เติมฟังก์ชัน Save -> คืนค่า GameState object สำหรับ serialization
+        // แปลงสถานะเกมเป็น GameState object สำหรับบันทึกลงไฟล์
         public GameState ToGameState(string activeSkin, List<string> ownedSkins)
         {
             return new GameState
             {
-                Snake = new List<Point>(Snake),          // copy list
-                Food = Food,
-                Direction = Direction,
-                Score = Score,
-                BestScore = BestScore,
-                Money = Money,
-                ActiveSkin = activeSkin,
-                OwnedSkins = string.Join(",", ownedSkins) // เก็บเป็น CSV ง่ายๆ
+                Snake = new List<Point>(Snake),           // copy รายการงู
+                Food = Food,                              // ตำแหน่งอาหาร
+                Direction = Direction,                    // ทิศทาง
+                Score = Score,                            // คะแนน
+                BestScore = BestScore,                    // highscore
+                Money = Money,                            // เงิน
+                ActiveSkin = activeSkin,                  // skin ปัจจุบัน
+                OwnedSkins = string.Join(",", ownedSkins) // เก็บเป็น string CSV
             };
         }
 
-        // โหลดจาก GameState
+        // โหลดค่าจาก GameState กลับเข้าเกม
         public void LoadFromState(GameState st)
         {
-            Snake = new List<Point>(st.Snake);
-            Food = st.Food;
-            Direction = st.Direction;
-            Score = st.Score;
-            BestScore = st.BestScore;
-            Money = st.Money;
-            GameUpdated?.Invoke();
+            Snake = new List<Point>(st.Snake); // เรียกคืนตำแหน่งงู
+            Food = st.Food;                    // ตำแหน่งอาหาร
+            Direction = st.Direction;          // ทิศทางเกม
+            Score = st.Score;                  // คะแนน
+            BestScore = st.BestScore;          // best score
+            Money = st.Money;                  // เงิน
+            GameUpdated?.Invoke();             // แจ้ง UI ให้ redraw สถานะ
         }
 
+        // ใช้เมื่อเล่นใหม่อีกครั้งหลังจากตาย
         public void ResetDeathFlag()
         {
-            IsDead = false;
+            IsDead = false; // ตั้งค่าให้ "ยังไม่ตาย"
         }
     }
 }

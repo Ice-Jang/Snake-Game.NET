@@ -10,195 +10,302 @@ namespace SnakeGameV2
     // Renderer รับผิดชอบการวาดทั้งหมด โดยไม่เปลี่ยนสถานะเกม
     internal class SnakeRenderer
     {
-        private readonly int cellSize;                   // ขนาดช่องพิกเซล
-        private int eatEffectFrame = 0;                  // frame ที่เหลือของเอฟเฟกต์กินอาหาร
-        private Point lastFoodPos = Point.Empty;         // ตำแหน่งที่เกิดการกิน (สำหรับเอฟเฟกต์)
-        private Color primaryColor = Color.FromArgb(0, 200, 0); // สีหลักเริ่มต้น
-        private Color accentColor = Color.Cyan;          // สีหัว/highlight
-        private List<Particle> particles = new List<Particle>();
-        private bool useGlow = true;                     // เปิด/ปิด glow
-        public bool DeathEffectFinished => particles.Count == 0;
+        private readonly int cellSize;                      // ขนาดหนึ่งช่องของ Grid ใช้กำหนดตำแหน่งและขนาดของ snake/food/particles (readonly → แก้ไม่ได้หลังสร้าง)
+        private int eatEffectFrame = 0;                     // จำนวนเฟรมที่เหลือของเอฟเฟกต์เมื่อกินอาหาร (0 = ไม่เล่น)
+        private Point lastFoodPos = Point.Empty;            // ตำแหน่งล่าสุดที่งูกินอาหาร ใช้เป็น origin เวลาเล่น EatEffect
+        private Color primaryColor = Color.FromArgb(0, 200, 0); // สีหลักของลำตัวงู (ค่า default ก่อนเปลี่ยนสกิน)
+        private Color accentColor = Color.Cyan;             // สีเน้น เช่น เส้นขอบหัว งาตา หรือเอฟเฟกต์ glow
 
-        public SnakeRenderer(int cellSize)
+        private List<Particle> particles = new List<Particle>(); // รายการเก็บ particle ทั้งหมดที่ถูกสร้าง (ตอนระเบิด)
+        private bool useGlow = true;                        // เปิด/ปิดเอฟเฟกต์แสงเรืองจากงู
+        private bool deathEffectActive = false;             // true ระหว่างเอฟเฟกต์ระเบิดงูยังค้างอยู่ (particle ยังไม่หมด)
+        private bool hideSnake = false;                     // ซ่อนงูหลังเริ่ม death explosion เพื่อไม่ให้งูค้างอยู่ในฉาก
+
+        public event EventHandler? DeathEffectFinishedEvent; // event เมื่อ particle หมด → แจ้ง Form/GameController ว่าแสดงเมนู GameOver ได้
+
+        public SnakeRenderer(int cellSize)                  // constructor รับขนาดเซลล์ของเกม
         {
-            this.cellSize = cellSize; // กำหนดขนาดช่อง
+            this.cellSize = cellSize;                       // กำหนดค่า cellSize ให้ renderer ใช้งานตลอดอายุ object
         }
 
         // ตั้งค่าสกิน (รับสีจาก SkinManager)
-        public void SetSkin(Color mainColor, Color accent)
+        public void SetSkin(Color mainColor, Color accent)   // ฟังก์ชันเปลี่ยนสกิน รับสีตัวหลัก + สีขอบ
         {
-            primaryColor = mainColor;
-            accentColor = accent;
+            primaryColor = mainColor;                       // เซ็ตสีหลักของงู เช่น ร่างกายทั้งหมด
+            accentColor = accent;                           // เซ็ตสีเน้น เช่น หัว, glow, highlight
         }
 
         // ฟังก์ชันหลัก: วาดทั้ง map/food/snake/particle effect
-        public void Render(Graphics g, SnakeGameController game)
+        public void Render(Graphics g, SnakeGameController game)   // ฟังก์ชันเรนเดอร์ทั้งหมด (อาหาร, งู, เอฟเฟกต์)
         {
-            g.SmoothingMode = SmoothingMode.AntiAlias; // ทำให้เส้นขอบนุ่ม
-            // วาด background (ฟลูซ) — caller ควบคุม background ของ control เอง
-            // วาดอาหารเป็นวงกลมสีแดง
-            g.FillEllipse(Brushes.Red, game.Food.X * cellSize, game.Food.Y * cellSize, cellSize, cellSize);
+            g.SmoothingMode = SmoothingMode.AntiAlias;             // เปิดโหมดทำให้ขอบวัตถุนุ่ม ไม่เป็นขั้นบันได
 
-            // วาดเอฟเฟกต์กินอาหาร (ถ้ามี) ก่อนหรือหลังงูก็ได้ — เราวาดบนสุดท้าย
-            DrawEatEffect(g);
+            // วาดอาหาร
+            g.FillEllipse(                                        // ใช้วาดวงกลมอาหาร
+                Brushes.Red,                                      // สีแดง
+                game.Food.X * cellSize,                           // แปลงตำแหน่ง X ใน grid → pixel
+                game.Food.Y * cellSize,                           // แปลงตำแหน่ง Y ใน grid → pixel
+                cellSize,                                         // ความกว้างของภาพอาหาร
+                cellSize                                          // ความสูงของภาพอาหาร (เท่ากัน → กลม)
+            );
 
-            // วาดลำตัวงู: หัว -> ลำตัว -> หาง (เรียง index)
-            for (int i = 0; i < game.Snake.Count; i++)
+            DrawEatEffect(g);                                     // วาดเอฟเฟกต์กิน (ถ้ามี)
+
+            if (!hideSnake)                                       // วาดงูเมื่อไม่ซ่อน (ตอนระเบิดจะ hide)
             {
-                Point seg = game.Snake[i];
-                int x = seg.X * cellSize;
-                int y = seg.Y * cellSize;
-
-                // ขนาด taper: หัวใหญ่ หางเล็ก (sizeFactor ในช่วง 1.0 -> 0.3)
-                float sizeFactor = 1.0f - (i / (float)game.Snake.Count) * 0.7f; // 70% taper
-                sizeFactor = Math.Max(0.3f, sizeFactor); // ไม่เล็กเกินไป
-
-                int segSize = (int)(cellSize * sizeFactor);
-                int offset = (cellSize - segSize) / 2;
-
-                // สร้าง gradient brush ให้มีมิติ
-                using (var bodyBrush = new LinearGradientBrush(new Rectangle(x, y, segSize, segSize),
-                                                               ControlPaint.Dark(primaryColor),
-                                                               ControlPaint.Light(primaryColor),
-                                                               LinearGradientMode.ForwardDiagonal))
+                for (int i = 0; i < game.Snake.Count; i++)        // loop ทุก segment ของงู (หัว→หาง)
                 {
-                    // ถ้าเป็นหาง (index == last) ให้วาดเป็นวงรีแคบ ๆ (หรือเป็นสามเหลี่ยม)
-                    if (i == game.Snake.Count - 1)
+                    Point seg = game.Snake[i];                    // ดึงตำแหน่ง segment ในรูปแบบ grid coordinate
+
+                    int x = seg.X * cellSize;                     // แปลง X grid → pixel
+                    int y = seg.Y * cellSize;                     // แปลง Y grid → pixel
+
+                    float sizeFactor = 1.0f - (i / (float)game.Snake.Count) * 0.7f; // ทำให้ส่วนหน้าใหญ่ ส่วนท้ายเล็กลงอย่างลื่น
+                    sizeFactor = Math.Max(0.3f, sizeFactor);      // ไม่ให้ segment เล็กเกินไป (ต่ำสุด 30%)
+
+                    int segSize = (int)(cellSize * sizeFactor);   // คำนวณขนาดจริงของ segment เป็น pixel
+                    int offset = (cellSize - segSize) / 2;        // เว้นกรอบเพื่อให้เล็กลงอย่างสมมาตรกลาง cell
+
+                    Rectangle rect = new Rectangle(               // กรอบสี่เหลี่ยมของ segment
+                        x + offset,
+                        y + offset,
+                        segSize,
+                        segSize
+                    );
+
+                    using (var bodyBrush = new LinearGradientBrush( // ทำสีไล่เฉดสวยงามให้ลำตัวงู
+                        rect,
+                        ControlPaint.Dark(primaryColor),            // สีเริ่มต้น = เข้ม
+                        ControlPaint.Light(primaryColor),           // สีปลาย = อ่อน
+                        LinearGradientMode.ForwardDiagonal))        // ไล่เฉดเฉียงเพื่อให้ดูมีมิติ
                     {
-                        // วาดหางเป็นวงรีเรียว
-                        using (var tailBrush = new SolidBrush(Color.FromArgb(200, ControlPaint.Dark(primaryColor))))
+                        g.FillRectangle(bodyBrush, rect);           // วาดลำตัวงู
+                    }
+
+                    if (i == game.Snake.Count - 1)                 // ถ้าเป็น segment ท้ายสุด → วาดหาง
+                    {
+                        int tailW = Math.Max(2, (int)(segSize * 0.5)); // ความกว้างหาง (ครึ่งของลำตัว)
+                        int tailH = Math.Max(2, (int)(segSize * 0.3)); // ความสูงหาง (แคบลงอีก)
+
+                        Rectangle tailRect = new Rectangle(         // กรอบหาง
+                            x + offset + (segSize - tailW) / 2,
+                            y + offset + (segSize - tailH) / 2,
+                            tailW,
+                            tailH
+                        );
+
+                        using (var tailBrush = new SolidBrush(      // แปรงสำหรับหาง (สีเข้มกว่า)
+                            Color.FromArgb(200, ControlPaint.Dark(primaryColor))))
                         {
-                            int tailW = Math.Max(2, (int)(segSize * 0.7));
-                            int tailH = Math.Max(2, (int)(segSize * 0.4));
-                            g.FillEllipse(tailBrush, x + offset + (segSize - tailW) / 2, y + offset + (segSize - tailH) / 2, tailW, tailH);
+                            g.FillRectangle(tailBrush, tailRect);    // วาดหาง
                         }
                     }
 
-                    // วาด body (ellipse ให้กลมเรียบ)
-                    g.FillEllipse(bodyBrush, x + offset, y + offset, segSize, segSize);
-
-                    // ถ้าเป็นหัว ให้วาดตาและ highlight
-                    if (i == 0)
+                    if (i == 0)                                      // วาดหัวงู (เฉพาะ segment แรก)
                     {
-                        // วาด highlight เล็ก ๆ ที่หัว
-                        using (var pen = new Pen(Color.FromArgb(160, accentColor), 2))
+                        using (var pen = new Pen(Color.FromArgb(160, accentColor), 2)) // สร้างขอบหัวงู
                         {
-                            g.DrawEllipse(pen, x + offset, y + offset, segSize, segSize);
+                            g.DrawRectangle(pen, rect);             // วาดกรอบ highlight หัว
                         }
-                        // วาดตา (สองตา)
-                        int eye = Math.Max(2, segSize / 6);
-                        int eyeOffset = Math.Max(2, segSize / 5);
-                        g.FillEllipse(Brushes.White, x + offset + eyeOffset, y + offset + eyeOffset / 2, eye, eye);
-                        g.FillEllipse(Brushes.White, x + offset + segSize - eyeOffset - eye, y + offset + eyeOffset / 2, eye, eye);
-                        g.FillEllipse(Brushes.Black, x + offset + eyeOffset + 1, y + offset + eyeOffset / 2 + 1, Math.Max(1, eye / 2), Math.Max(1, eye / 2));
-                        g.FillEllipse(Brushes.Black, x + offset + segSize - eyeOffset - eye + 1, y + offset + eyeOffset / 2 + 1, Math.Max(1, eye / 2), Math.Max(1, eye / 2));
-                    }
-                }
 
-                // ถ้าเปิด glow ให้วาด glow รอบ ๆ segment แบบนุ่ม
-                if (useGlow)
-                {
-                    int glowSize = (int)(segSize * 0.6f);
-                    using (Brush glow = new SolidBrush(Color.FromArgb(40, accentColor)))
+                        int eye = Math.Max(2, segSize / 6);         // ขนาดตา
+                        int eyeOffset = Math.Max(2, segSize / 5);   // การเลื่อนตำแหน่งตา
+
+                        g.FillRectangle(                             // ตาซ้าย
+                            Brushes.White,
+                            x + offset + eyeOffset,
+                            y + offset + eyeOffset / 2,
+                            eye,
+                            eye);
+
+                        g.FillRectangle(                             // ตาขวา
+                            Brushes.White,
+                            x + offset + segSize - eyeOffset - eye,
+                            y + offset + eyeOffset / 2,
+                            eye,
+                            eye);
+
+                        g.FillRectangle(                             // ม่านตาซ้าย
+                            Brushes.Black,
+                            x + offset + eyeOffset + 1,
+                            y + offset + eyeOffset / 2 + 1,
+                            Math.Max(1, eye / 2),
+                            Math.Max(1, eye / 2));
+
+                        g.FillRectangle(                             // ม่านตาขวา
+                            Brushes.Black,
+                            x + offset + segSize - eyeOffset - eye + 1,
+                            y + offset + eyeOffset / 2 + 1,
+                            Math.Max(1, eye / 2),
+                            Math.Max(1, eye / 2));
+                    }
+
+                    if (useGlow)                                     // ถ้าเปิด glow effect
                     {
-                        g.FillEllipse(glow, x + offset - glowSize / 4, y + offset - glowSize / 4, segSize + glowSize / 2, segSize + glowSize / 2);
+                        int glowSize = (int)(segSize * 0.6f);        // ขนาดวง glow รอบ segment
+
+                        using Brush glow = new SolidBrush(           // แปรงแสงเรือง
+                            Color.FromArgb(40, accentColor));
+
+                        g.FillRectangle(                             // วาด glow รอบ segment เป็นกล่องโปร่งแสง
+                            glow,
+                            x + offset - glowSize / 4,
+                            y + offset - glowSize / 4,
+                            segSize + glowSize / 2,
+                            segSize + glowSize / 2);
                     }
                 }
             }
 
-            // วาดอนุภาค Explosion
-            foreach (var p in particles)
-            {
-                int alpha = Math.Max(0, Math.Min(255, p.Life * 5));
-
-                using var brush = new SolidBrush(Color.FromArgb(alpha, p.Color));
-                g.FillEllipse(brush, p.X, p.Y, 6, 6);
-            }
-            UpdateParticles();
+            RenderParticles(g, game);                                // วาด + อัปเดต particle explosion
         }
 
-        // วาดเอฟเฟกต์ตอนกินอาหาร (วงแหวนขยาย)
-        private void DrawEatEffect(Graphics g)
-        {
-            if (eatEffectFrame <= 0) return;                 // ถ้าไม่มีเฟรมให้วาด ให้กลับ
-            int maxFrames = 12;                              // กำหนดจำนวนเฟรมทั้งหมดของเอฟเฟกต์
-            float t = eatEffectFrame / (float)maxFrames;     // t ในช่วง 0..1
-            int radius = (int)(cellSize * (1 + (1 - t) * 3)); // ขนาดวงกลมขึ้นอยู่กับเฟรม
-            int alpha = (int)(200 * t);                      // alpha ลดเมื่อเฟรมลดลง
+        //-------------------------------------------------
+        // Eat Effect
+        //-------------------------------------------------
 
-            using (Pen p = new Pen(Color.FromArgb(alpha, 255, 220, 60), 3))
+        private void DrawEatEffect(Graphics g)                 // ฟังก์ชันวาดเอฟเฟกต์วงแหวนตอนกินอาหาร
+        {
+            if (eatEffectFrame <= 0) return;                   // ถ้าเฟรมหมดแล้ว ไม่ต้องวาดอะไร
+
+            int maxFrames = 12;                                // จำนวนเฟรมสูงสุดของแอนิเมชันวงแหวน
+            float t = eatEffectFrame / (float)maxFrames;       // คำนวณสัดส่วน 1 → 0 เพื่อทำ fade-out + shrink
+
+            int radius = (int)(cellSize * (1 + (1 - t) * 3));  // รัศมีวงแหวน = ใหญ่ขึ้นเมื่อ t ลดลง
+            int alpha = (int)(200 * t);                        // ความโปร่งใสลดลงเมื่อใกล้จบ
+
+            using (Pen p = new Pen(Color.FromArgb(alpha, 255, 220, 60), 3)) // ปากกาแสงสีทองโปร่งแสง
             {
-                // วาดวงกลมที่ตำแหน่ง lastFoodPos
-                g.DrawEllipse(p, lastFoodPos.X * cellSize + cellSize / 2 - radius / 2,
-                                lastFoodPos.Y * cellSize + cellSize / 2 - radius / 2,
-                                radius, radius);
-            }
-            eatEffectFrame--;                                 // ลดเฟรมทีละ 1
-        }
-
-        // ฟังก์ชันที่ UI เรียกทุกครั้งที่เห็นว่าอาหารถูกกิน ให้ renderer เริ่มเอฟเฟกต์
-        public void NotifyFoodEaten(Point foodPos, int frames = 12)
-        {
-            lastFoodPos = foodPos;
-            eatEffectFrame = frames;
-        }
-
-        public void CreateDeathExplosion(Point head, int count = 40)
-        {
-            particles.Clear();
-
-            float cx = head.X * cellSize + cellSize / 2;
-            float cy = head.Y * cellSize + cellSize / 2;
-
-            Random r = new Random();
-
-            for (int i = 0; i < count; i++)
-            {
-                // กระจายอนุภาคออกทุกทิศ
-                float angle = (float)(r.NextDouble() * Math.PI * 2);
-                float speed = 1.0f + (float)r.NextDouble() * 4f;
-
-                float vx = (float)Math.Cos(angle) * speed;
-                float vy = (float)Math.Sin(angle) * speed;
-
-                var p = new Particle(
-                    cx,
-                    cy,
-                    vx,
-                    vy,
-                    life: 30 + r.Next(20),
-                    color: Color.FromArgb(255,
-                                          255,
-                                          r.Next(150, 255),
-                                          r.Next(0, 80))      // ส้ม-แดงแบบไฟ
+                g.DrawEllipse(                                 // วาดวงแหวนออกจากจุดที่กินอาหาร
+                    p,
+                    lastFoodPos.X * cellSize + cellSize / 2 - radius / 2, // X center - half radius
+                    lastFoodPos.Y * cellSize + cellSize / 2 - radius / 2, // Y center - half radius
+                    radius,                                     // width ของวง
+                    radius                                      // height ของวง
                 );
-
-                particles.Add(p);
             }
+
+            eatEffectFrame--;                                   // ลดเฟรมทุกครั้งเพื่อทำให้เอฟเฟกต์จางลงเรื่อย ๆ
         }
 
-        private void UpdateParticles()
+        public void NotifyFoodEaten(Point foodPos, int frames = 12) // ฟังก์ชันเรียกเมื่อ game แจ้งว่ามีการกินอาหาร
         {
-            for (int i = particles.Count - 1; i >= 0; i--)
+            lastFoodPos = foodPos;                                 // บันทึกตำแหน่งอาหารล่าสุดเพื่อใช้เป็นจุดวงแหวน
+            eatEffectFrame = frames;                               // รีเซ็ตจำนวนเฟรมแอนิเมชันกินใหม่
+        }
+
+        //-------------------------------------------------
+        // Death Explosion
+        //-------------------------------------------------
+
+        public void CreateDeathExplosion(List<Point> snake, int particlePerSegment = 40)  // ฟังก์ชันสร้างเอฟเฟกต์ระเบิดงูตอนตาย
+        {
+            particles.Clear();                                       // ล้าง particle ทั้งหมดก่อนสร้างใหม่
+            hideSnake = true;                                        // ซ่อนงู เพื่อให้เห็นแค่เอฟเฟกต์ระเบิด
+            deathEffectActive = true;                                // ทำเครื่องหมายว่ากำลังเล่น death effect
+
+            Random r = new Random();                                 // Random สำหรับสุ่มค่า particle
+            Color baseColor = primaryColor;                          // สีหลักของงู เพื่อผสมใน particle
+            Color accent = accentColor;                              // สีเน้น (ใช้เพิ่มประกาย)
+
+            ParticleShape[] shapePool = new ParticleShape[]          // ชนิดของชิ้นส่วนที่แตกออก
             {
-                var p = particles[i];
+                ParticleShape.Square,                                // สี่เหลี่ยมปกติ
+                ParticleShape.RotatedSquare,                         // สี่เหลี่ยมหมุน
+                ParticleShape.Shard,                                 // ชิ้นยาว (เศษแหลม)
+                ParticleShape.Line,                                  // เส้นยาว
+                ParticleShape.Triangle                               // สามเหลี่ยม
+            };
 
-                p.X += p.VX;
-                p.Y += p.VY;
-                p.Life--;
+            foreach (var seg in snake)                               // loop ทุก segment ของงู แล้วสร้าง particle รอบจุดนั้น
+            {
+                float cx = seg.X * cellSize + cellSize / 2f;         // X center ของ segment (เป็นจุดกำเนิด particle)
+                float cy = seg.Y * cellSize + cellSize / 2f;         // Y center ของ segment
 
-                // ทำให้ fade-out
-                if (p.Life <= 0)
+                for (int i = 0; i < particlePerSegment; i++)         // สร้าง particle ต่อ segment ตามจำนวนที่กำหนด
                 {
-                    particles.RemoveAt(i);
+                    ParticleShape shape = shapePool[r.Next(shapePool.Length)]; // เลือกรูปร่าง particle แบบสุ่ม
+
+                    float rot = (float)(r.NextDouble() * 360.0);      // มุมเริ่มต้น (องศา)
+                    float angVel = (float)(r.NextDouble() * 20.0 - 10.0); // ความเร็วการหมุน (แกว่งได้ -10 ถึง +10)
+
+                    float speed = 20f + (float)r.NextDouble() * 40f;  // ความเร็วสุ่มของ particle (ระเบิดออกแรง)
+                    float angle = (float)(r.NextDouble() * Math.PI * 2.0); // มุมการเคลื่อนที่ทุกทิศทาง 0–360°
+                    float vx = (float)Math.Cos(angle) * speed;        // ความเร็วแกน X
+                    float vy = (float)Math.Sin(angle) * speed;        // ความเร็วแกน Y
+
+                    float size = 2f + (float)r.NextDouble()           // ขนาดเริ่มต้นของ particle
+                                 * (seg == snake[0]                    // หัวงู → ขนาดใหญ่กว่า
+                                    ? cellSize * 1.2f
+                                    : cellSize * 0.9f);
+
+                    if (shape == ParticleShape.Shard)                 // ถ้าเป็น shard → เพิ่มความยาว
+                        size *= 1.6f;
+
+                    int life = 10 + r.Next(40);                       // อายุ particle แบบสุ่ม (ยิ่งมากอยู่ยิ่งนาน)
+
+                    Color mixed = Color.FromArgb(                     // สร้างสีใหม่โดยผสมสีร่างกาย + accent
+                        255,
+                        Clamp(baseColor.R + r.Next(-30, 50) + accent.R / 3),
+                        Clamp(baseColor.G + r.Next(-30, 50) + accent.G / 3),
+                        Clamp(baseColor.B + r.Next(-30, 50) + accent.B / 3)
+                    );
+
+                    particles.Add(new Particle(                       // เพิ่ม particle ลงลิสต์
+                        cx, cy,                                       // ตำแหน่งเริ่มต้นกลาง segment
+                        vx, vy,                                       // ความเร็ว
+                        life,                                         // อายุการอยู่บนจอ
+                        mixed,                                        // สีผสมที่ได้
+                        size,                                         // ขนาด particle
+                        shape,                                        // รูปร่าง (Square / Shard / Triangle ฯลฯ)
+                        rot,                                          // มุมเริ่มต้น
+                        angVel,                                       // ความเร็วหมุน
+                        motionBlurSteps: 3                            // เปิด motion blur 3 ชั้น
+                    ));
                 }
             }
         }
 
-        public void UpdateOnlyAnimation()
+        private int Clamp(int v)
         {
-            UpdateParticles();  // อัปเดต explosion
-                                // EatEffect ไม่ต้อง update เพราะตอนตายไม่ได้ใช้
+            if (v < 0) return 0;
+            if (v > 255) return 255;
+            return v;
+        }
+
+        //-------------------------------------------------
+        // Render + Physics update for particles
+        //-------------------------------------------------
+
+        private void RenderParticles(Graphics g, SnakeGameController game)      // ฟังก์ชันวาด particle ทั้งหมด + อัปเดตฟิสิกส์
+        {
+            int W = game.GridCols * cellSize;                                   // ความกว้างพื้นที่เกมเป็นพิกเซลทั้งหมด
+            int H = game.GridRows * cellSize;                                   // ความสูงพื้นที่เกมเป็นพิกเซลทั้งหมด
+
+            for (int i = particles.Count - 1; i >= 0; i--)                      // loop ทุก particle (ย้อนหลังเพื่อ Remove ได้)
+            {
+                Particle p = particles[i];                                      // ดึง particle ปัจจุบัน
+
+                p.Update(
+                    friction: 0.96f,                                            // ลดความเร็วทุกเฟรมเพื่อให้ค่อย ๆ ช้าลง (แรงเสียดทาน)
+                    gravity: 0f,                                                // ไม่มีแรงโน้มถ่วง (snake explosion ไม่ตกลงล่าง)
+                    boundsW: W,                                                 // พื้นที่ขอบสำหรับกระแทก X
+                    boundsH: H,                                                 // พื้นที่ขอบสำหรับกระแทก Y
+                    bounceFactor: 0.65f                                          // อัตราแรงเด้งหลังชนกำแพง (65%)
+                );                                                              // อัปเดตฟิสิกส์ particle ทั้งหมด
+
+                p.Draw(g, motionBlurSteps: 3);                                  // วาด particle พร้อม motion blur 3 ชั้น
+
+                if (!p.IsAlive)                                                 // ถ้า particle ตาย (Life หมด หรือขนาดเล็กเกิน)
+                    particles.RemoveAt(i);                                      // ลบออกจากลิสต์
+            }
+
+            if (deathEffectActive && particles.Count == 0)                       // ถ้า death effect ยัง active แต่ไม่มี particle เหลือแล้ว
+            {
+                deathEffectActive = false;                                      // ปิด death effect
+                hideSnake = false;                                              // ปล่อยให้วาดงูใหม่ (ตอนเริ่มเกมใหม่)
+                DeathEffectFinishedEvent?.Invoke(this, EventArgs.Empty);        // แจ้ง FormMain ว่าแอนิเมชันตายจบแล้ว
+            }
         }
     }
 }
