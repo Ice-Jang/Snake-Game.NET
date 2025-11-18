@@ -10,67 +10,71 @@ namespace SnakeGameV2
 {
     internal class SoundManager
     {
-        private WindowsMediaPlayer eatPlayer = new WindowsMediaPlayer();     // ตัวเล่นเสียงสำหรับเสียง "กิน" แยกตัว เพื่อป้องกันชนกับเสียงอื่น
-        private WindowsMediaPlayer deathPlayer = new WindowsMediaPlayer();   // ตัวเล่นเสียงสำหรับเสียง "ตาย" แยกอีกตัว เพื่อใช้ fade-out ได้
+        private WindowsMediaPlayer eatPlayer = new WindowsMediaPlayer();     // ตัวเล่นเสียงสำหรับ "กิน"
+        private WindowsMediaPlayer deathPlayer = new WindowsMediaPlayer();   // ตัวเล่นเสียงสำหรับ "ตาย"
+        private Random rand = new Random();                                   // ใช้สุ่มไฟล์เสียงกิน
+        private System.Windows.Forms.Timer fadeTimer = new System.Windows.Forms.Timer(); // timer สำหรับ fade-out
+        private int volume = 100;                                             // ค่า volume ปัจจุบันของเสียงตาย
 
-        private Random rand = new Random();                                   // ใช้สุ่มเลือกไฟล์เสียงกิน
-
-        private System.Windows.Forms.Timer fadeTimer = new System.Windows.Forms.Timer(); // timer สำหรับทำ animation fade-out
-        private int volume = 100;                                             // เก็บค่า volume ปัจจุบันของ deathPlayer (ใช้ลดลงเรื่อย ๆ)
+        private readonly string soundDir;                                     // path โฟลเดอร์เสียงแบบ auto-detect
 
         public SoundManager()
         {
-            fadeTimer.Interval = 100;     // กำหนดให้ fade-out ทำงานทุก 100 ms (0.1 วินาที)
+            fadeTimer.Interval = 100;                                         // fade-out ขยับทุก 100ms (0.1 วินาที)
+
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;           // baseDir = bin\Debug\net6.0-windows\
+            string projectDir = Directory.GetParent(                          // ขึ้นไป 2 ชั้น
+                                    Directory.GetParent(baseDir).FullName
+                                 ).FullName;                                  // projectDir = โฟลเดอร์โปรเจกต์จริง
+
+            soundDir = Path.Combine(projectDir, "Assets", "Sounds");          // ต่อ path → Project/Assets/Sounds
+
+            if (!Directory.Exists(soundDir))                                  // ถ้าโฟลเดอร์นี้ไม่เจอ (กรณี publish)
+                soundDir = Path.Combine(baseDir, "Assets", "Sounds");         // fallback → bin/.../Assets/Sounds
         }
 
-        // ฟังก์ชันเล่นเสียงกินแบบสุ่มจากหลายไฟล์
         public void PlayEat()
         {
-            string soundDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Sounds"); // path โฟลเดอร์เสียงใน /Assets/Sounds
-
-            string[] sounds =
+            string[] sounds =                                                  // เตรียมไฟล์เสียงทั้งหมด
             {
-            Path.Combine(soundDir, "eat1.mp3"), // รวมไฟล์เสียงเข้า array
-            Path.Combine(soundDir, "eat2.mp3"),
-            Path.Combine(soundDir, "eat3.mp3"),
-            Path.Combine(soundDir, "eat4.mp3"),
-            Path.Combine(soundDir, "eat5.mp3")
+            Path.Combine(soundDir, "eat1.mp3"),                           // eat1
+            Path.Combine(soundDir, "eat2.mp3"),                           // eat2
+            Path.Combine(soundDir, "eat3.mp3"),                           // eat3
+            Path.Combine(soundDir, "eat4.mp3"),                           // eat4
+            Path.Combine(soundDir, "eat5.mp3")                            // eat5
         };
 
-            eatPlayer.settings.volume = 100;                  // รีเซ็ต volume เพื่อป้องกันเสียงเบาเพราะเล่นซ้ำหลายครั้ง
-            eatPlayer.URL = sounds[rand.Next(sounds.Length)]; // สุ่มเลือกไฟล์เสียง
-            eatPlayer.controls.play();                        // สั่งเล่นทันที
+            eatPlayer.settings.volume = 100;                                  // reset volume (กันเสียงเบา)
+            eatPlayer.URL = sounds[rand.Next(sounds.Length)];                 // เลือกเสียงแบบสุ่ม 1 อัน
+            eatPlayer.controls.play();                                        // เล่นทันที
         }
 
-        // เล่นเสียงตาย และตามด้วยเอฟเฟกต์ fade-out
         public void PlayDie()
         {
-            string soundDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Sounds"); // path ไปยังโฟลเดอร์เสียง
-            string file = Path.Combine(soundDir, "death.mp3");                                         // ระบุไฟล์เสียงตาย
+            string file = Path.Combine(soundDir, "death.mp3");                // ระบุไฟล์ death.mp3
 
-            volume = 200;                          // ⭐ รีเซ็ต volume ให้เริ่มสูงก่อนค่อยลด (200 ทำให้เสียงเริ่มชัด/ดังกว่า default)
-            deathPlayer.settings.volume = volume;   // ตั้งค่า volume ให้ตัว player
-            deathPlayer.URL = file;                 // ตั้งไฟล์เสียง
-            deathPlayer.controls.play();            // เริ่มเล่นเสียงตายทันที
+            volume = 200;                                                     // start volume สูงเพื่อ fade ลงสวย ๆ
+            deathPlayer.settings.volume = volume;                             // ตั้งค่า volume ให้ player
+            deathPlayer.URL = file;                                           // ใส่ไฟล์เสียง
+            deathPlayer.controls.play();                                      // เล่นเสียงตายทันที
 
-            fadeTimer.Tick -= FadeOutTick;          // ⭐ remove delegate เก่าเพื่อกันซ้อน (กัน fade ทำงานหลายรอบทับกัน)
-            fadeTimer.Tick += FadeOutTick;          // สมัคร event handler สำหรับ fade-out
-            fadeTimer.Start();                      // เริ่มเฟด
+            fadeTimer.Tick -= FadeOutTick;                                    // กัน event handler ซ้ำซ้อน
+            fadeTimer.Tick += FadeOutTick;                                    // ใส่ event ใหม่สำหรับ fade-out
+            fadeTimer.Start();                                                // เริ่มการ fade-out
         }
 
-        // ควบคุมการ fade-out ของเสียงตาย
         private void FadeOutTick(object? sender, EventArgs e)
         {
-            volume -= 5;                            // ลดระดับเสียงลงทีละ 5 ทุก 100 ms
+            volume -= 5;                                                      // ลดเสียงลงครั้งละ 5 ทุก 100ms
 
-            if (volume <= 0)                        // ถ้า volume ลดจนถึง 0 → หยุดเฟด
+            if (volume <= 0)                                                  // ถ้าลดจนหมด
             {
-                fadeTimer.Stop();                   // หยุด timer ทันที (ไม่ให้ทำงานต่อ)
-                deathPlayer.controls.stop();        // หยุดเล่นเสียงจริง ๆ
-                return;                             // ออกจากฟังก์ชัน
+                fadeTimer.Stop();                                             // หยุด timer
+                deathPlayer.controls.stop();                                  // หยุดเล่นเสียงจริง ๆ
+                return;                                                       // ออกจากฟังก์ชัน
             }
 
-            deathPlayer.settings.volume = volume;   // ตั้ง volume ใหม่หลังจากลด
+            deathPlayer.settings.volume = volume;                             // อัปเดต volume ใหม่ (เสียงค่อยลดลงเรื่อย ๆ)
         }
     }
 }
