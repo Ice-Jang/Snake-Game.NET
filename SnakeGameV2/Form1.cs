@@ -14,6 +14,7 @@ namespace SnakeGameV2
         private SkinManager skinMgr = new SkinManager();             // จัดการสกิน
         private SoundManager sound = new SoundManager();             // จัดการเสียง
         private string saveFile = "savegame.json";                   // ไฟล์เก็บสถานะ
+        private Size lastGameAreaSize = Size.Empty;
 
         public FormMain()
         {
@@ -21,7 +22,7 @@ namespace SnakeGameV2
             this.DoubleBuffered = true;                              // เปิดโหมด double-buffer เพื่อลดอาการภาพกระพริบ (flicker)
             this.Resize += FormMain_Resize;
 
-            controller = new SnakeGameController(30, 20);            // สร้าง controller ของเกม ระบุขนาด Grid
+            controller = new SnakeGameController(1, 1);            // สร้าง controller ของเกม ระบุขนาด Grid
             renderer = new SnakeRenderer(cellSize);                  // สร้าง renderer ที่จะวาดเกมทั้งหมด
 
             // เมื่อเกม update (งูขยับ / กินอาหาร / spawn food / etc)
@@ -429,6 +430,10 @@ namespace SnakeGameV2
         private void FormMain_Resize(object? sender, EventArgs e)
         {
             AutoResizeGameArea();
+
+            // ป้องกันไม่ให้ resize loop เกิด
+            if (gameArea.Size != lastGameAreaSize)
+                lastGameAreaSize = gameArea.Size;
         }
     }
 }

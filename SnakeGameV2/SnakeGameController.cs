@@ -21,8 +21,8 @@ namespace SnakeGameV2
         public bool IsDead { get; private set; } = false;       // flag บอกว่างูตายหรือยัง
 
         private readonly Random rand = new Random();            // ตัวสุ่ม ใช้กับการ spawn อาหาร
-        private readonly int gridCols;                          // จำนวนคอลัมน์ของแผง grid
-        private readonly int gridRows;                          // จำนวนแถวของ grid
+        private int gridCols;                          // จำนวนคอลัมน์ของแผง grid
+        private int gridRows;                          // จำนวนแถวของ grid
         public int GridCols => gridCols;                        // expose จำนวนคอลัมน์ให้ renderer ใช้
         public int GridRows => gridRows;                        // expose จำนวนแถวให้ renderer ใช้
 
@@ -175,37 +175,43 @@ namespace SnakeGameV2
 
         public void ResizeGrid(int newCols, int newRows)
         {
-            // ไม่จำเป็นต้องอัปเดต ถ้าขนาดเท่าเดิม
+            // 1) ถ้าขนาดเท่าเดิมไม่ต้องทำงานซ้ำ
             if (newCols == gridCols && newRows == gridRows)
                 return;
 
-            // อัปเดตขนาดแผนที่
-            typeof(SnakeGameController)
-                .GetField("gridCols", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-                ?.SetValue(this, newCols);
+            // 2) อัปเดตขนาด grid โดยตรง (ไม่ต้อง reflection)
+            gridCols = newCols;
+            gridRows = newRows;
 
-            typeof(SnakeGameController)
-                .GetField("gridRows", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-                ?.SetValue(this, newRows);
-
-            // ---- ปรับตำแหน่งงูให้ยังอยู่ในแผนที่ใหม่ ----
+            // 3) Clamp ตำแหน่งงูให้ไม่ออกนอกแผนที่ใหม่
             for (int i = 0; i < Snake.Count; i++)
             {
-                Point p = Snake[i];
-                int x = Math.Min(p.X, newCols - 1);
-                int y = Math.Min(p.Y, newRows - 1);
-                Snake[i] = new Point(x, y);
+                var p = Snake[i];
+                Snake[i] = new Point(
+                    Math.Min(p.X, gridCols - 1),
+                    Math.Min(p.Y, gridRows - 1)
+                );
             }
 
-            // ---- ปรับอาหารให้อยู่ในแผนที่ใหม่ ----
-            if (Food.X >= newCols || Food.Y >= newRows)
+            // 4) ป้องกันงูซ้อนกันเอง: ลบหางจนกว่าจะไม่ซ้ำกัน
+            HashSet<Point> seen = new();
+            for (int i = 0; i < Snake.Count; i++)
             {
-                SpawnFood();  // ถ้าออกนอก map → spawn ใหม่
+                if (seen.Contains(Snake[i]))
+                {
+                    // ลบงูตั้งแต่ i เป็นต้นไป
+                    Snake.RemoveRange(i, Snake.Count - i);
+                    break;
+                }
+                seen.Add(Snake[i]);
             }
 
-            // แจ้งให้ UI/render วาดใหม่
-            GameUpdated?.Invoke();
+            // 5) ถ้าอาหารออกนอก map → หาใหม่ให้ปลอดภัย
+            if (Food.X >= gridCols || Food.Y >= gridRows || Snake.Contains(Food))
+                SpawnFood();
 
+            // 6) แจ้ง UI วาดใหม่
+            GameUpdated?.Invoke();
         }
     }
 }
