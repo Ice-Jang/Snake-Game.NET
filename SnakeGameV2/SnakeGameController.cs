@@ -21,8 +21,8 @@ namespace SnakeGameV2
         public bool IsDead { get; private set; } = false;       // flag บอกว่างูตายหรือยัง
 
         private readonly Random rand = new Random();            // ตัวสุ่ม ใช้กับการ spawn อาหาร
-        private int gridCols;                          // จำนวนคอลัมน์ของแผง grid
-        private int gridRows;                          // จำนวนแถวของ grid
+        private int gridCols;                                   // จำนวนคอลัมน์ของแผง grid
+        private int gridRows;                                   // จำนวนแถวของ grid
         public int GridCols => gridCols;                        // expose จำนวนคอลัมน์ให้ renderer ใช้
         public int GridRows => gridRows;                        // expose จำนวนแถวให้ renderer ใช้
 

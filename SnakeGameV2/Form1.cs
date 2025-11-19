@@ -83,6 +83,10 @@ namespace SnakeGameV2
 
         private void AutoResizeGameArea()
         {
+            // ป้องกัน Resize ตอนฟอร์มกำลังโหลด (controller/gameArea ยังไม่ถูก new)
+            if (controller == null || gameArea == null)
+                return;
+
             // ขนาดฟอร์มด้านในหัก padding แล้ว
             int availableW = this.ClientSize.Width - (GameAreaMargin * 2);
             int availableH = this.ClientSize.Height - (GameAreaMargin * 2);
@@ -430,6 +434,9 @@ namespace SnakeGameV2
         private void FormMain_Resize(object? sender, EventArgs e)
         {
             AutoResizeGameArea();
+
+            if (controller == null)
+                return;
 
             // ป้องกันไม่ให้ resize loop เกิด
             if (gameArea.Size != lastGameAreaSize)
