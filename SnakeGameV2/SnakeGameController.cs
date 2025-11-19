@@ -172,5 +172,40 @@ namespace SnakeGameV2
         {
             IsDead = false; // ตั้งค่าให้ "ยังไม่ตาย"
         }
+
+        public void ResizeGrid(int newCols, int newRows)
+        {
+            // ไม่จำเป็นต้องอัปเดต ถ้าขนาดเท่าเดิม
+            if (newCols == gridCols && newRows == gridRows)
+                return;
+
+            // อัปเดตขนาดแผนที่
+            typeof(SnakeGameController)
+                .GetField("gridCols", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                ?.SetValue(this, newCols);
+
+            typeof(SnakeGameController)
+                .GetField("gridRows", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                ?.SetValue(this, newRows);
+
+            // ---- ปรับตำแหน่งงูให้ยังอยู่ในแผนที่ใหม่ ----
+            for (int i = 0; i < Snake.Count; i++)
+            {
+                Point p = Snake[i];
+                int x = Math.Min(p.X, newCols - 1);
+                int y = Math.Min(p.Y, newRows - 1);
+                Snake[i] = new Point(x, y);
+            }
+
+            // ---- ปรับอาหารให้อยู่ในแผนที่ใหม่ ----
+            if (Food.X >= newCols || Food.Y >= newRows)
+            {
+                SpawnFood();  // ถ้าออกนอก map → spawn ใหม่
+            }
+
+            // แจ้งให้ UI/render วาดใหม่
+            GameUpdated?.Invoke();
+
+        }
     }
 }

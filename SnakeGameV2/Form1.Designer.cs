@@ -128,7 +128,7 @@
             panelShop.Controls.Add(groupYellow);
             panelShop.Controls.Add(groupCyan);
             panelShop.Controls.Add(groupGreen);
-            panelShop.Location = new Point(-1, -1);
+            panelShop.Location = new Point(120, 60);
             panelShop.Margin = new Padding(100, 100, 100, 300);
             panelShop.Name = "panelShop";
             panelShop.Padding = new Padding(1);
@@ -139,7 +139,7 @@
             // lblMoney
             // 
             lblMoney.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-            lblMoney.BackColor = Color.FromArgb(128, 128, 255);
+            lblMoney.BackColor = Color.Black;
             lblMoney.FlatStyle = FlatStyle.Flat;
             lblMoney.Font = new Font("Segoe UI", 12F);
             lblMoney.ForeColor = Color.White;
@@ -315,7 +315,7 @@
             btnback.Cursor = Cursors.Hand;
             btnback.FlatAppearance.BorderSize = 0;
             btnback.FlatStyle = FlatStyle.Flat;
-            btnback.Location = new Point(12, 6);
+            btnback.Location = new Point(12, 7);
             btnback.Name = "btnback";
             btnback.Size = new Size(36, 39);
             btnback.TabIndex = 31;
@@ -328,10 +328,9 @@
             panelPause.BorderStyle = BorderStyle.FixedSingle;
             panelPause.Controls.Add(lblPause);
             panelPause.Controls.Add(btnReplay);
-            panelPause.Controls.Add(panelShop);
             panelPause.Controls.Add(btnPlay);
             panelPause.Controls.Add(btnStop);
-            panelPause.Location = new Point(132, 62);
+            panelPause.Location = new Point(120, 60);
             panelPause.Margin = new Padding(0);
             panelPause.Name = "panelPause";
             panelPause.Size = new Size(769, 460);
@@ -340,11 +339,11 @@
             // 
             // lblPause
             // 
-            lblPause.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+            lblPause.Anchor = AnchorStyles.None;
             lblPause.AutoSize = true;
             lblPause.Font = new Font("Segoe UI", 30F);
             lblPause.ForeColor = Color.White;
-            lblPause.Location = new Point(237, 133);
+            lblPause.Location = new Point(285, 127);
             lblPause.Name = "lblPause";
             lblPause.Size = new Size(231, 54);
             lblPause.TabIndex = 12;
@@ -352,6 +351,7 @@
             // 
             // btnReplay
             // 
+            btnReplay.Anchor = AnchorStyles.None;
             btnReplay.BackColor = Color.Black;
             btnReplay.BackgroundImage = (Image)resources.GetObject("btnReplay.BackgroundImage");
             btnReplay.BackgroundImageLayout = ImageLayout.Zoom;
@@ -359,7 +359,7 @@
             btnReplay.FlatAppearance.BorderColor = Color.FromArgb(64, 64, 64);
             btnReplay.FlatStyle = FlatStyle.Flat;
             btnReplay.ForeColor = Color.White;
-            btnReplay.Location = new Point(237, 204);
+            btnReplay.Location = new Point(273, 204);
             btnReplay.Name = "btnReplay";
             btnReplay.Size = new Size(101, 87);
             btnReplay.TabIndex = 11;
@@ -368,13 +368,14 @@
             // 
             // btnPlay
             // 
+            btnPlay.Anchor = AnchorStyles.None;
             btnPlay.BackColor = Color.Black;
             btnPlay.BackgroundImage = (Image)resources.GetObject("btnPlay.BackgroundImage");
             btnPlay.BackgroundImageLayout = ImageLayout.Zoom;
             btnPlay.FlatAppearance.BorderColor = Color.FromArgb(64, 64, 64);
             btnPlay.FlatStyle = FlatStyle.Flat;
             btnPlay.ForeColor = Color.White;
-            btnPlay.Location = new Point(237, 204);
+            btnPlay.Location = new Point(273, 204);
             btnPlay.Name = "btnPlay";
             btnPlay.Size = new Size(101, 87);
             btnPlay.TabIndex = 9;
@@ -383,6 +384,7 @@
             // 
             // btnStop
             // 
+            btnStop.Anchor = AnchorStyles.None;
             btnStop.BackColor = Color.Black;
             btnStop.BackgroundImage = (Image)resources.GetObject("btnStop.BackgroundImage");
             btnStop.BackgroundImageLayout = ImageLayout.Zoom;
@@ -390,7 +392,7 @@
             btnStop.FlatAppearance.BorderColor = Color.FromArgb(64, 64, 64);
             btnStop.FlatStyle = FlatStyle.Flat;
             btnStop.ForeColor = Color.White;
-            btnStop.Location = new Point(379, 204);
+            btnStop.Location = new Point(415, 204);
             btnStop.Name = "btnStop";
             btnStop.Size = new Size(101, 87);
             btnStop.TabIndex = 10;
@@ -401,7 +403,7 @@
             panelHighest.Anchor = AnchorStyles.Top;
             panelHighest.Controls.Add(pictureBox1);
             panelHighest.Controls.Add(lblHighest);
-            panelHighest.Location = new Point(393, 7);
+            panelHighest.Location = new Point(386, 16);
             panelHighest.Name = "panelHighest";
             panelHighest.Size = new Size(282, 31);
             panelHighest.TabIndex = 30;
@@ -436,7 +438,7 @@
             btnPause.BackgroundImageLayout = ImageLayout.Center;
             btnPause.FlatAppearance.BorderSize = 0;
             btnPause.FlatStyle = FlatStyle.Flat;
-            btnPause.Location = new Point(54, 6);
+            btnPause.Location = new Point(12, 7);
             btnPause.Name = "btnPause";
             btnPause.Size = new Size(36, 39);
             btnPause.TabIndex = 28;
@@ -447,24 +449,25 @@
             // 
             lblScore.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             lblScore.AutoSize = true;
-            lblScore.BackColor = Color.FromArgb(128, 128, 255);
+            lblScore.BackColor = Color.Black;
+            lblScore.BorderStyle = BorderStyle.FixedSingle;
             lblScore.FlatStyle = FlatStyle.Flat;
             lblScore.Font = new Font("Segoe UI", 17F);
             lblScore.ForeColor = Color.White;
-            lblScore.Location = new Point(881, 6);
+            lblScore.Location = new Point(874, 15);
             lblScore.Margin = new Padding(3, 0, 50, 0);
             lblScore.Name = "lblScore";
-            lblScore.Size = new Size(93, 31);
+            lblScore.Size = new Size(95, 33);
             lblScore.TabIndex = 23;
             lblScore.Text = "Score: 0";
             lblScore.Visible = false;
             // 
             // lblTitle
             // 
-            lblTitle.Anchor = AnchorStyles.Top;
+            lblTitle.Anchor = AnchorStyles.None;
             lblTitle.BackColor = Color.White;
             lblTitle.Font = new Font("Segoe UI", 40F);
-            lblTitle.Location = new Point(59, 27);
+            lblTitle.Location = new Point(59, 77);
             lblTitle.Margin = new Padding(300);
             lblTitle.Name = "lblTitle";
             lblTitle.Size = new Size(657, 72);
@@ -473,10 +476,10 @@
             // 
             // btnStart
             // 
-            btnStart.Anchor = AnchorStyles.Top;
+            btnStart.Anchor = AnchorStyles.None;
             btnStart.Cursor = Cursors.Hand;
             btnStart.Font = new Font("Segoe UI", 20F);
-            btnStart.Location = new Point(289, 146);
+            btnStart.Location = new Point(289, 196);
             btnStart.Margin = new Padding(0, 40, 0, 0);
             btnStart.Name = "btnStart";
             btnStart.Size = new Size(213, 50);
@@ -486,10 +489,10 @@
             // 
             // btnExit
             // 
-            btnExit.Anchor = AnchorStyles.Top;
+            btnExit.Anchor = AnchorStyles.None;
             btnExit.Cursor = Cursors.Hand;
             btnExit.Font = new Font("Segoe UI", 20F);
-            btnExit.Location = new Point(289, 286);
+            btnExit.Location = new Point(289, 336);
             btnExit.Margin = new Padding(0, 40, 0, 0);
             btnExit.Name = "btnExit";
             btnExit.Size = new Size(213, 50);
@@ -499,10 +502,10 @@
             // 
             // btnShop
             // 
-            btnShop.Anchor = AnchorStyles.Top;
+            btnShop.Anchor = AnchorStyles.None;
             btnShop.Cursor = Cursors.Hand;
             btnShop.Font = new Font("Segoe UI", 20F);
-            btnShop.Location = new Point(289, 216);
+            btnShop.Location = new Point(289, 266);
             btnShop.Margin = new Padding(0, 40, 0, 0);
             btnShop.Name = "btnShop";
             btnShop.Size = new Size(213, 50);
@@ -515,12 +518,13 @@
             gameArea.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             gameArea.BackColor = Color.Black;
             gameArea.BorderStyle = BorderStyle.FixedSingle;
-            gameArea.Location = new Point(132, 62);
-            gameArea.Margin = new Padding(100);
+            gameArea.Location = new Point(120, 60);
+            gameArea.Margin = new Padding(0);
             gameArea.Name = "gameArea";
             gameArea.Size = new Size(769, 460);
             gameArea.TabIndex = 22;
             gameArea.TabStop = false;
+            gameArea.Visible = false;
             gameArea.PreviewKeyDown += gameArea_PreviewKeyDown_1;
             // 
             // gameTimer
@@ -534,8 +538,9 @@
             panelMainMenu.Controls.Add(btnShop);
             panelMainMenu.Controls.Add(btnExit);
             panelMainMenu.Controls.Add(btnStart);
-            panelMainMenu.Location = new Point(132, 62);
+            panelMainMenu.Location = new Point(120, 60);
             panelMainMenu.Name = "panelMainMenu";
+            panelMainMenu.Padding = new Padding(0, 50, 0, 0);
             panelMainMenu.Size = new Size(769, 460);
             panelMainMenu.TabIndex = 37;
             // 
@@ -557,8 +562,9 @@
             AutoScaleMode = AutoScaleMode.Dpi;
             BackColor = Color.Black;
             ClientSize = new Size(1004, 587);
-            Controls.Add(panelSaveLoad);
             Controls.Add(panelMainMenu);
+            Controls.Add(panelShop);
+            Controls.Add(panelSaveLoad);
             Controls.Add(btnback);
             Controls.Add(panelPause);
             Controls.Add(panelHighest);
@@ -567,6 +573,7 @@
             Controls.Add(gameArea);
             Name = "FormMain";
             Text = "FormMain";
+            Resize += FormMain_Resize;
             panelShop.ResumeLayout(false);
             groupYellow.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)pictureBox3).EndInit();

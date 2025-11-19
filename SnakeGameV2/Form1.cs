@@ -7,6 +7,7 @@ namespace SnakeGameV2
     public partial class FormMain : Form
     {
         private const int DefaultCellSize = 20;                      // ขนาดช่องมาตรฐาน
+        private const int GameAreaMargin = 80;                       // ระยะห่างจากขอบฟอร์ม
         private int cellSize = DefaultCellSize;                      // ตัวแปร cellSize (ปรับได้เมื่อ resize)
         private SnakeGameController controller;                      // จัดการ logic เกม
         private SnakeRenderer renderer;                              // จัดการการวาด
@@ -18,11 +19,9 @@ namespace SnakeGameV2
         {
             InitializeComponent();                                   // สร้าง control ทั้งหมดจากไฟล์ Designer อัตโนมัติ
             this.DoubleBuffered = true;                              // เปิดโหมด double-buffer เพื่อลดอาการภาพกระพริบ (flicker)
+            this.Resize += FormMain_Resize;
 
-            int cols = Math.Max(20, gameArea.Width / cellSize);      // คำนวณจำนวนคอลัมน์จากความกว้าง panel แต่ต้องไม่ต่ำกว่า 20
-            int rows = Math.Max(10, gameArea.Height / cellSize);     // คำนวณจำนวนแถวจากความสูง panel แต่ต้องไม่ต่ำกว่า 10
-
-            controller = new SnakeGameController(cols, rows);        // สร้าง controller ของเกม ระบุขนาด Grid
+            controller = new SnakeGameController(30, 20);            // สร้าง controller ของเกม ระบุขนาด Grid
             renderer = new SnakeRenderer(cellSize);                  // สร้าง renderer ที่จะวาดเกมทั้งหมด
 
             // เมื่อเกม update (งูขยับ / กินอาหาร / spawn food / etc)
@@ -49,12 +48,14 @@ namespace SnakeGameV2
             controller.OnDie += () =>
             {
                 sound.PlayDie();                                     // เล่นเสียงตาย
-                renderer.CreateDeathExplosion(controller.Snake);      // สร้าง particle explosion ทั้งตัวงู
+                renderer.CreateDeathExplosion(controller.Snake);     // สร้าง particle explosion ทั้งตัวงู
             };
 
             gameTimer.Interval = controller.Speed;                   // ตั้งความเร็วเกมเริ่มต้นตาม controller
             gameArea.Paint += gameArea_Paint;                        // ผูก event Paint ของ panel → ให้ renderer วาดเกม
             gameArea.PreviewKeyDown += gameArea_PreviewKeyDown_1;    // เปิดรับปุ่มลูกศรใน panel
+
+            sound.WarmUp();                                          // ⭐ ลดกระตุกตอนกินครั้งแรก
 
             // ผูกปุ่มทั้งหมดจาก UI
             btnStart.Click += (s, e) => StartButton_Click();         // ปุ่มเริ่มเกม
@@ -79,6 +80,40 @@ namespace SnakeGameV2
             UpdateUI();                                              // แสดงคะแนน/เงินทันทีตอนเปิดเกม
         }
 
+        private void AutoResizeGameArea()
+        {
+            // ขนาดฟอร์มด้านในหัก padding แล้ว
+            int availableW = this.ClientSize.Width - (GameAreaMargin * 2);
+            int availableH = this.ClientSize.Height - (GameAreaMargin * 2);
+
+            // ปัดขนาดให้หาร cellSize ลงตัว
+            int snappedW = (availableW / cellSize) * cellSize;
+            int snappedH = (availableH / cellSize) * cellSize;
+
+            if (snappedW <= 0 || snappedH <= 0)
+                return;
+
+            // ป้องกัน loop — ถ้าขนาดเท่าเดิม ไม่ต้องตั้งค่าใหม่
+            if (gameArea.Width == snappedW && gameArea.Height == snappedH)
+                return;
+
+            int left = (this.ClientSize.Width - snappedW) / 2;
+            int top = (this.ClientSize.Height - snappedH) / 2;
+            gameArea.Left = left;
+            gameArea.Top = top;
+
+            // ปรับขนาดจริงของ panel
+            gameArea.Size = new Size(snappedW, snappedH);
+
+            // ⭐ อัปเดตขนาด grid ให้ controller
+            int cols = snappedW / cellSize;
+            int rows = snappedH / cellSize;
+
+            controller.ResizeGrid(cols, rows);
+
+            gameArea.Invalidate();
+        }
+
         // ฟังก์ชันวาดภาพของ gameArea (เรียกโดยระบบเมื่อ Invalidate)
         private void gameArea_Paint(object? sender, PaintEventArgs e)
         {
@@ -90,6 +125,115 @@ namespace SnakeGameV2
             renderer.Render(e.Graphics, controller);                  // วาดทุกอย่างในเกม
         }
 
+        // ปุ่ม Save
+        private void SaveButton_Click()
+        {
+            var state = controller.ToGameState(skinMgr.ActiveSkin, skinMgr.GetOwnedSkins());
+            // บันทึกข้อมูลเกมทั้งหมด (งู, อาหาร, คะแนน, สกิน)
+            string json = JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true });
+            // แปลงเป็น JSON อ่านง่าย (จัด format)
+            File.WriteAllText(saveFile, json);                       // เขียนลงไฟล์
+            MessageBox.Show("Game saved.");                          // แจ้งผู้เล่นว่าเซฟแล้ว
+        }
+
+        // ปุ่ม Load
+        private void LoadButton_Click()
+        {
+            if (!File.Exists(saveFile))                              // ถ้าไม่มีไฟล์เซฟ
+            {
+                MessageBox.Show("No save file."); return;            // แจ้งเตือนและออก
+            }
+
+            string json = File.ReadAllText(saveFile);                // อ่านไฟล์ JSON
+            var state = JsonSerializer.Deserialize<GameState>(json); // แปลงกลับเป็น object
+
+            if (state == null)                                       // เฟลในการแปลง?
+            {
+                MessageBox.Show("Invalid save."); return;
+            }
+
+            controller.LoadFromState(state);                         // โหลดสถานะเกมกลับเข้า controller
+
+            skinMgr = new SkinManager();                             // reset skin manager ใหม่ (กันข้อมูลซ้อน)
+
+            foreach (var s in state.OwnedSkins.Split(',', StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (s == "Cyan")
+                {
+                    btnBuyCyan.Visible = false;                      // ใน UI ตั้งค่า owned
+                    groupCyan.Text = "Cyan : owned";
+                    btnUseCyan.Visible = true;
+                }
+                else if (s == "Yellow")
+                {
+                    btnBuyYellow.Visible = false;
+                    groupYellow.Text = "Yellow : owned";
+                    btnUseYellow.Visible = true;
+                }
+
+                skinMgr.OwnedSkins.Add(s);                           // เพิ่มสกินเข้า owned set
+            }
+
+            skinMgr.UseSkin(state.ActiveSkin);                       // ใช้สกินที่เซฟไว้
+
+            UpdateUI();                                              // อัปเดตคะแนนและเงินบนหน้าจอ
+
+            MessageBox.Show("Game loaded.");                         // แจ้งผู้เล่น
+        }
+
+        // UI: update labels จาก controller
+        private void UpdateUI()
+        {
+            lblScore.Text = $"Score: {controller.Score}";             // อัปเดตคะแนน
+            lblMoney.Text = $"Your Money: {controller.Money}";        // อัปเดตเงิน
+            lblHighest.Text = $"Highest Score: {controller.BestScore}"; // อัปเดต highscore
+        }
+
+        // ฟังก์ชันสำหรับรับ key (panel PreviewKeyDown)
+        private void gameArea_PreviewKeyDown_1(object? sender, PreviewKeyDownEventArgs e)
+        {
+            switch (e.KeyCode)
+            {
+                case Keys.Up:
+                    controller.ChangeDirection("Up");                 // เปลี่ยนทิศขึ้น
+                    e.IsInputKey = true;                              // มีคีย์อินพุตจริง
+                    break;
+                case Keys.Down:
+                    controller.ChangeDirection("Down");               // เปลี่ยนลง
+                    e.IsInputKey = true;
+                    break;
+                case Keys.Left:
+                    controller.ChangeDirection("Left");               // เปลี่ยนซ้าย
+                    e.IsInputKey = true;
+                    break;
+                case Keys.Right:
+                    controller.ChangeDirection("Right");              // เปลี่ยนขวา
+                    e.IsInputKey = true;
+                    break;
+                case Keys.Escape:
+                    PauseButton_Click();                              // กด ESC → pause
+                    e.IsInputKey = true;
+                    break;
+            }
+
+            if (controller.IsDead)
+                return;                                               // ถ้างูตายแล้ว ห้ามบังคับต่อ
+
+            gameArea.Focus();                                         // ให้ panel รับ input ต่อเนื่อง
+        }
+
+        // เปิดหน้าร้าน (UI logic) — จะเชื่อมกับ skinMgr เพื่อซื้อ/ใช้สกิน
+        private void OpenShop()
+        {
+            btnback.Visible = true;                                   // แสดงปุ่ม Back
+            panelShop.Visible = true;                                 // เปิดร้านค้า
+            panelMainMenu.Visible = false;                            // ซ่อนเมนูหลัก
+            lblSave.Visible = false;                                  // ซ่อนข้อความ
+            lblLoad.Visible = false;                                  // ซ่อนข้อความ
+            lblMoney.Visible = true;                                  // แสดงเงิน
+            lblMoney.Text = $"Your money: {controller.Money}";        // ตั้งค่าข้อความ
+        }
+
         // เมื่อ controller แจ้ง GameOver
         private void OnGameOver()
         {
@@ -97,7 +241,7 @@ namespace SnakeGameV2
             btnPlay.Visible = false;                                  // ซ่อนปุ่ม Play (Resume)
             lblPause.Text = "Game Over!";                             // แสดงข้อความ
             panelPause.Visible = true;                                // เปิด panel Pause
-            lblPause.Location = new Point(237, 116);                  // จัดตำแหน่งให้ข้อความอยู่ตรงกลาง
+            gameArea.Visible = false;                                 // ซ่อนพื้นที่เกม
         }
 
         // เริ่มเกมใหม่
@@ -114,20 +258,21 @@ namespace SnakeGameV2
             controller.ResetDeathFlag();                              // Reset ตัวแปร IsDead
             controller.StartNewGame(3);                               // เริ่มเกมใหม่ ความยาวงูเริ่มต้น = 3
             gameTimer.Start();                                        // เริ่ม Timer เกม
-            UpdateUI();                                               // อัปเดต UI ทั้งหมด
 
+            UpdateUI();                                               // อัปเดต UI ทั้งหมด
+            AutoResizeGameArea();                                     // ⭐ ให้เริ่มต้นด้วยขนาด grid ที่ถูกต้อง
             gameArea.Focus();                                         // ให้ Panel รับ input จาก keyboard
         }
 
         // ปุ่ม Pause
         private void PauseButton_Click()
         {
+            gameArea.Visible = false;                                 // ซ่อนพื้นที่เกม
             gameTimer.Stop();                                         // หยุดการอัปเดตของเกมโดยหยุด timer
             panelPause.Visible = true;                                // แสดง panel พักเกม
             btnPlay.Visible = true;                                   // แสดงปุ่ม resume
             btnReplay.Visible = false;                                // ซ่อนปุ่ม replay เพราะยังไม่ game over
-            lblPause.Text = "Pause";                                   // ข้อความแสดงบนหน้าจอ
-            lblPause.Location = new Point(292, 116);                  // จัดตำแหน่งข้อความ pause
+            lblPause.Text = "Pause";                                  // ข้อความแสดงบนหน้าจอ
         }
 
         // ปุ่ม Back
@@ -136,6 +281,8 @@ namespace SnakeGameV2
             btnback.Visible = false;                                  // ซ่อนปุ่มย้อนกลับ
             panelShop.Visible = false;                                // ซ่อนร้านค้า
             panelMainMenu.Visible = true;                             // แสดงเมนูหลัก
+            lblSave.Visible = true;                                   // แสดงข้อความ
+            lblLoad.Visible = true;                                   // แสดงข้อความ
         }
 
         // ปุ่ม Stop
@@ -162,7 +309,7 @@ namespace SnakeGameV2
         // ปุ่ม Replay
         private void ReplayButton_Click()
         {
-            gameArea.Visible = true;                                  // แสดงพื้นที่เกม
+            gameArea.Visible = true;                                  // ซ่อนพื้นที่เกม
             panelPause.Visible = false;                               // ซ่อน pause menu
             btnReplay.Visible = false;                                // ซ่อนปุ่ม replay (เพราะเริ่มใหม่แล้ว)
             btnPlay.Visible = false;                                  // ซ่อนปุ่ม resume ด้วย
@@ -170,6 +317,7 @@ namespace SnakeGameV2
             controller.ResetDeathFlag();                              // รีเซ็ตสถานะ IsDead
             gameTimer.Start();                                        // เริ่ม timer
             controller.StartNewGame(3);                               // รีเซ็ตเกม → เริ่มเลเวลใหม่
+            AutoResizeGameArea();                                     // ⭐ ให้เริ่มต้นด้วยขนาด grid ที่ถูกต้อง
             UpdateUI();                                               // อัปเดตคะแนน/เงิน/สกิน
             this.gameArea.Focus();                                    // ตั้ง focus ให้รับ input
         }
@@ -266,119 +414,6 @@ namespace SnakeGameV2
             btnUseYellow.Text = "use";
         }
 
-        // ปุ่ม Save
-        private void SaveButton_Click()
-        {
-            var state = controller.ToGameState(skinMgr.ActiveSkin, skinMgr.GetOwnedSkins());
-            // บันทึกข้อมูลเกมทั้งหมด (งู, อาหาร, คะแนน, สกิน)
-            string json = JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true });
-            // แปลงเป็น JSON อ่านง่าย (จัด format)
-            File.WriteAllText(saveFile, json);                       // เขียนลงไฟล์
-            MessageBox.Show("Game saved.");                          // แจ้งผู้เล่นว่าเซฟแล้ว
-        }
-
-        // ปุ่ม Load
-        private void LoadButton_Click()
-        {
-            if (!File.Exists(saveFile))                              // ถ้าไม่มีไฟล์เซฟ
-            {
-                MessageBox.Show("No save file."); return;            // แจ้งเตือนและออก
-            }
-
-            string json = File.ReadAllText(saveFile);                // อ่านไฟล์ JSON
-            var state = JsonSerializer.Deserialize<GameState>(json); // แปลงกลับเป็น object
-
-            if (state == null)                                       // เฟลในการแปลง?
-            {
-                MessageBox.Show("Invalid save."); return;
-            }
-
-            controller.LoadFromState(state);                         // โหลดสถานะเกมกลับเข้า controller
-
-            skinMgr = new SkinManager();                             // reset skin manager ใหม่ (กันข้อมูลซ้อน)
-
-            foreach (var s in state.OwnedSkins.Split(',', StringSplitOptions.RemoveEmptyEntries))
-            {
-                if (s == "Cyan")
-                {
-                    btnBuyCyan.Visible = false;                      // ใน UI ตั้งค่า owned
-                    groupCyan.Text = "Cyan : owned";
-                    btnUseCyan.Visible = true;
-                }
-                else if (s == "Yellow")
-                {
-                    btnBuyYellow.Visible = false;
-                    groupYellow.Text = "Yellow : owned";
-                    btnUseYellow.Visible = true;
-                }
-
-                skinMgr.OwnedSkins.Add(s);                           // เพิ่มสกินเข้า owned set
-            }
-
-            skinMgr.UseSkin(state.ActiveSkin);                       // ใช้สกินที่เซฟไว้
-
-            UpdateUI();                                              // อัปเดตคะแนนและเงินบนหน้าจอ
-
-            MessageBox.Show("Game loaded.");                         // แจ้งผู้เล่น
-        }
-
-        // UI: update labels จาก controller
-        private void UpdateUI()
-        {
-            lblScore.Text = $"Score: {controller.Score}";             // อัปเดตคะแนน
-            lblMoney.Text = $"Your Money: {controller.Money}";        // อัปเดตเงิน
-            lblHighest.Text = $"Highest Score: {controller.BestScore}"; // อัปเดต highscore
-        }
-
-        // ฟังก์ชันสำหรับรับ key (panel PreviewKeyDown)
-        private void gameArea_PreviewKeyDown_1(object? sender, PreviewKeyDownEventArgs e)
-        {
-            switch (e.KeyCode)
-            {
-                case Keys.Up:
-                    controller.ChangeDirection("Up");                 // เปลี่ยนทิศขึ้น
-                    e.IsInputKey = true;                             // มีคีย์อินพุตจริง
-                    break;
-                case Keys.Down:
-                    controller.ChangeDirection("Down");               // เปลี่ยนลง
-                    e.IsInputKey = true;
-                    break;
-                case Keys.Left:
-                    controller.ChangeDirection("Left");               // เปลี่ยนซ้าย
-                    e.IsInputKey = true;
-                    break;
-                case Keys.Right:
-                    controller.ChangeDirection("Right");              // เปลี่ยนขวา
-                    e.IsInputKey = true;
-                    break;
-                case Keys.Escape:
-                    PauseButton_Click();                              // กด ESC → pause
-                    e.IsInputKey = true;
-                    break;
-            }
-
-            if (controller.IsDead)
-                return;                                               // ถ้างูตายแล้ว ห้ามบังคับต่อ
-
-            gameArea.Focus();                                         // ให้ panel รับ input ต่อเนื่อง
-        }
-
-        // เปิดหน้าร้าน (UI logic) — จะเชื่อมกับ skinMgr เพื่อซื้อ/ใช้สกิน
-        private void OpenShop()
-        {
-            btnback.Visible = true;                                   // แสดงปุ่ม Back
-            panelShop.Visible = true;                                 // เปิดร้านค้า
-            panelMainMenu.Visible = false;                            // ซ่อนเมนูหลัก
-            lblMoney.Visible = true;                                  // แสดงเงิน
-            lblMoney.Text = $"Your money: {controller.Money}";        // ตั้งค่าข้อความ
-
-            btnBuyCyan.Visible = !skinMgr.GetOwnedSkins().Contains("Cyan");   // ซ่อนถ้าซื้อแล้ว
-            btnUseCyan.Visible = skinMgr.GetOwnedSkins().Contains("Cyan");    // โชว์ปุ่ม use
-
-            btnBuyYellow.Visible = !skinMgr.GetOwnedSkins().Contains("Yellow");
-            btnUseYellow.Visible = skinMgr.GetOwnedSkins().Contains("Yellow");
-        }
-
         private void gameTimer_Tick(object? sender, EventArgs e)
         {
             if (!controller.IsDead)
@@ -389,6 +424,11 @@ namespace SnakeGameV2
             {
                 gameArea.Invalidate();                                 // ถ้าตาย → วาด particle explosion ต่อไปเรื่อย ๆ
             }
+        }
+
+        private void FormMain_Resize(object? sender, EventArgs e)
+        {
+            AutoResizeGameArea();
         }
     }
 }

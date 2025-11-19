@@ -10,115 +10,150 @@ namespace SnakeGameV2
 {
     internal class SoundManager
     {
-        private WindowsMediaPlayer eatPlayer = new WindowsMediaPlayer();     // สร้างตัวเล่นเสียงสำหรับเสียง "กิน"
-        private WindowsMediaPlayer deathPlayer = new WindowsMediaPlayer();   // สร้างตัวเล่นเสียงสำหรับเสียง "ตาย"
-        private Random rand = new Random();                                   // ตัวสุ่ม เพื่อสุ่มเลือกไฟล์กินแบบ random
-        private System.Windows.Forms.Timer fadeTimer = new System.Windows.Forms.Timer(); // Timer สำหรับทำ fade-out
-        private int volume = 100;                                             // เก็บระดับเสียงปัจจุบันของ deathPlayer (ใช้ลดลงทีละ step)
+        private WindowsMediaPlayer eatPlayer = new WindowsMediaPlayer();     // ตัวเล่นเสียง "กิน"
+        private WindowsMediaPlayer deathPlayer = new WindowsMediaPlayer();   // ตัวเล่นเสียง "ตาย"
+        private Random rand = new Random();                                   // สุ่มไฟล์เสียงกิน
+        private System.Windows.Forms.Timer fadeTimer = new System.Windows.Forms.Timer(); // timer สำหรับ fade-out
+        private int volume = 100;                                             // volume ปัจจุบันของเสียงตาย
 
-        private readonly string soundDir;                                     // path ไปยังโฟลเดอร์ Assets/Sounds ที่หาได้อัตโนมัติ
-        private readonly string debugLog = "sound_debug_log.txt";             // ไฟล์ log สำหรับบันทึกการทำงานของ SoundManager
+        private readonly string soundDir;                                     // path โฟลเดอร์เสียงแบบ auto-detect
+        private readonly string debugLog = "sound_debug_log.txt";             // ไฟล์ log สำหรับ debug
 
         public SoundManager()
         {
             fadeTimer.Interval = 100;                                         // ให้ fade-out ทำงานทุก 0.1 วินาที
 
-            Debug("=== NEW SoundManager Init ===");                           // log ว่าเริ่มสร้าง SoundManager แล้ว
+            Debug("=== NEW SoundManager Init ===");                          // เขียน log ว่ามีการสร้าง object แล้ว
 
-            string start = Directory.GetCurrentDirectory();                   // ดึงโฟลเดอร์ที่รันโปรแกรมจริง (bin/Debug/... )
-            Debug("Start Directory = " + start);                              // log path เริ่มต้น
+            string start = Directory.GetCurrentDirectory();                   // โฟลเดอร์ที่รันโปรแกรมจริง (bin/Debug/…)
+            Debug("Start Directory = " + start);                              // เขียน log
 
-            string? found = null;                                             // ตัวแปรเก็บ path ที่เจอ Assets/Sounds จริง
-            string dir = start;                                               // เริ่มเดินจากโฟลเดอร์ bin
+            string? found = null;                                             // เตรียมตัวแปรสำหรับเก็บ path ที่เจอจริง
+            string dir = start;                                               // เริ่มไล่จากโฟลเดอร์ปัจจุบัน
 
-            for (int i = 0; i < 10; i++)                                      // loop สูงสุด 10 ชั้น เพื่อป้องกันวนไม่รู้จบ
+            for (int i = 0; i < 10; i++)                                      // ไล่ขึ้นสูงสุด 10 ชั้น
             {
-                string test = Path.Combine(dir, "Assets", "Sounds");          // สร้าง path ที่ต้องการตรวจสอบ
+                string test = Path.Combine(dir, "Assets", "Sounds");          // สร้าง path ทดลองดูว่ามี Assets/Sounds ไหม
 
-                if (Directory.Exists(test))                                   // ถ้าเจอโฟลเดอร์ Assets/Sounds จริง
+                if (Directory.Exists(test))                                   // ถ้าเจอจริง
                 {
-                    found = test;                                             // เก็บ path นั้น
-                    break;                                                    // หยุด loop
+                    found = test;                                             // เก็บ path
+                    break;                                                    // หยุด loop เพราะหาเจอแล้ว
                 }
 
-                dir = Directory.GetParent(dir)?.FullName ?? "";               // ถ้าไม่เจอ → ขึ้นไปโฟลเดอร์พ่อหนึ่งชั้น
+                dir = Directory.GetParent(dir)?.FullName ?? "";               // ขึ้นไปโฟลเดอร์บนสุด
             }
 
-            if (found != null)                                                // ถ้าเจอโฟลเดอร์จริง
+            if (found != null)                                                // ถ้าเจอ path จริง
             {
                 soundDir = found;                                             // ใช้ path นั้นเป็นโฟลเดอร์เสียง
-                Debug("Found soundDir = " + soundDir);                        // log ว่าเจอแล้ว
+                Debug("Found soundDir = " + soundDir);                        // เขียน log
             }
-            else                                                              // ถ้าไม่เจอเลย
+            else
             {
-                soundDir = Path.Combine(start, "Assets", "Sounds");           // fallback → ใช้ path ในโฟลเดอร์ปัจจุบันแทน
-                Debug("WARNING: Sound folder not found. Using fallback = " + soundDir);  // log แจ้งเตือน
+                soundDir = Path.Combine(start, "Assets", "Sounds");           // fallback (กรณีไม่เจอจริง)
+                Debug("WARNING: Sound folder not found. Using fallback = " + soundDir);
+            }
+        }
+
+        // 🔥 เพิ่มฟังก์ชัน WarmUp — แก้กระตุกตอนกินครั้งแรก
+        public void WarmUp()
+        {
+            try
+            {
+                string warmFile = Path.Combine(soundDir, "eat1.mp3");         // ใช้ไฟล์ eat1 สำหรับ warm-up
+                Debug("WarmUp using → " + warmFile);                          // เขียน log
+
+                if (!File.Exists(warmFile))                                   // ถ้าไฟล์หาย → ไม่ warm-up
+                {
+                    Debug("WarmUp ERROR: file not found");
+                    return;
+                }
+
+                eatPlayer.settings.volume = 0;                                // ปิดเสียงให้เงียบ
+                eatPlayer.URL = warmFile;                                     // โหลดไฟล์เข้าสู่ memory
+                eatPlayer.controls.play();                                    // เล่นครั้งแรกแบบเงียบ → ทำให้ WMP warm-up
+
+                var t = new System.Windows.Forms.Timer();                     // timer สำหรับหยุดเสียง warm-up
+                t.Interval = 60;                                              // ให้เล่นเบา ๆ แค่ 60ms
+                t.Tick += (s, e) =>
+                {
+                    t.Stop();                                                 // หยุด timer
+                    eatPlayer.controls.stop();                                // หยุดเล่นไฟล์ warm-up
+                    eatPlayer.settings.volume = 100;                          // คืน volume ปกติ
+                    Debug("WarmUp complete");                                 // บันทึก log ว่า warm-up เสร็จแล้ว
+                };
+                t.Start();                                                    // เริ่ม warm-up
+            }
+            catch (Exception ex)
+            {
+                Debug("WarmUp EXCEPTION: " + ex.Message);                     // ถ้ามี exception → log ไว้
             }
         }
 
         private void Debug(string msg)
         {
-            File.AppendAllText(debugLog, $"[{DateTime.Now:HH:mm:ss}] {msg}\n"); // เขียนข้อความ log พร้อมเวลาลงไฟล์ text
+            File.AppendAllText(debugLog, $"[{DateTime.Now:HH:mm:ss}] {msg}\n"); // เขียน log ใส่ไฟล์
         }
 
         public void PlayEat()
         {
-            string[] sounds =                                                  // Array ของไฟล์เสียงกินทั้งหมด
+            string[] sounds =
             {
-            Path.Combine(soundDir, "eat1.mp3"),                           // เสียงกินแบบที่ 1
-            Path.Combine(soundDir, "eat2.mp3"),                           // แบบที่ 2
-            Path.Combine(soundDir, "eat3.mp3"),                           // แบบที่ 3
-            Path.Combine(soundDir, "eat4.mp3"),                           // แบบที่ 4
-            Path.Combine(soundDir, "eat5.mp3"),                           // แบบที่ 5
+            Path.Combine(soundDir, "eat1.mp3"),
+            Path.Combine(soundDir, "eat2.mp3"),
+            Path.Combine(soundDir, "eat3.mp3"),
+            Path.Combine(soundDir, "eat4.mp3"),
+            Path.Combine(soundDir, "eat5.mp3"),
         };
 
-            string chosen = sounds[rand.Next(sounds.Length)];                 // สุ่มเลือกไฟล์เสียง 1 อันจาก array
-            Debug("PlayEat → " + chosen);                                     // log ว่าเลือกไฟล์ไหน
+            string chosen = sounds[rand.Next(sounds.Length)];                 // สุ่มเลือกไฟล์กิน
+            Debug("PlayEat → " + chosen);                                    // log
 
-            if (!File.Exists(chosen))                                         // ถ้าไฟล์ไม่มีจริง
+            if (!File.Exists(chosen))                                         // ถ้าไฟล์หาย → ไม่เล่น
             {
-                Debug("ERROR: Eat sound NOT FOUND!");                         // เขียน log error
-                return;                                                        // ไม่เล่นเสียง
+                Debug("ERROR: Eat sound NOT FOUND!");
+                return;
             }
 
-            eatPlayer.settings.volume = 100;                                   // ตั้งระดับเสียงให้เต็ม (ป้องกันเสียงเบา)
-            eatPlayer.URL = chosen;                                           // ระบุ path ให้ player
-            eatPlayer.controls.play();                                        // เล่นไฟล์
+            eatPlayer.settings.volume = 100;                                  // volume ปกติ
+            eatPlayer.URL = chosen;                                           // โหลดไฟล์
+            eatPlayer.controls.play();                                        // เล่นทันที
         }
 
         public void PlayDie()
         {
-            string file = Path.Combine(soundDir, "death.mp3");                // path ของเสียงตาย
-            Debug("PlayDie → " + file);                                       // log path ที่เลือก
+            string file = Path.Combine(soundDir, "death.mp3");                // ไฟล์เสียงตาย
+            Debug("PlayDie → " + file);                                       // log
 
-            if (!File.Exists(file))                                           // ถ้าไฟล์ไม่เจอ
+            if (!File.Exists(file))                                           // ถ้าไฟล์หาย → ไม่เล่น
             {
-                Debug("ERROR: death.mp3 NOT FOUND!");                         // log error
-                return;                                                        // ไม่เล่นเสียง
+                Debug("ERROR: death.mp3 NOT FOUND!");
+                return;
             }
 
-            volume = 200;                                                     // ตั้ง volume เริ่มต้นสูงเพื่อ fade-out สวย ๆ
-            deathPlayer.settings.volume = volume;                             // ใส่ค่า volume เข้า player
-            deathPlayer.URL = file;                                           // เซ็ตไฟล์เสียง
-            deathPlayer.controls.play();                                      // เริ่มเล่นทันที
+            volume = 200;                                                     // เริ่มต้น volume สูงเพื่อ fade ลง
+            deathPlayer.settings.volume = volume;                             // ตั้งค่า volume
+            deathPlayer.URL = file;                                           // ใส่ไฟล์เสียง
+            deathPlayer.controls.play();                                      // เล่นเสียงตาย
 
-            fadeTimer.Tick -= FadeOutTick;                                    // ป้องกัน event handler ซ้ำซ้อน
-            fadeTimer.Tick += FadeOutTick;                                    // ใส่ event handler ใหม่
-            fadeTimer.Start();                                                // เริ่มทำ fade-out
+            fadeTimer.Tick -= FadeOutTick;                                    // กัน event handler ซ้ำ
+            fadeTimer.Tick += FadeOutTick;                                    // ผูก event handler
+            fadeTimer.Start();                                                // เริ่ม fade-out
         }
 
         private void FadeOutTick(object? sender, EventArgs e)
         {
             volume -= 5;                                                      // ลด volume ทีละ 5
 
-            if (volume <= 0)                                                  // ถ้าเสียงลดจนถึง 0
+            if (volume <= 0)                                                  // ถ้า volume หมด
             {
                 fadeTimer.Stop();                                             // หยุด timer
-                deathPlayer.controls.stop();                                  // หยุดเล่นเพลงจริง ๆ
-                return;                                                        // ออกจากฟังก์ชัน
+                deathPlayer.controls.stop();                                  // หยุดเสียงจริง ๆ
+                return;
             }
 
-            deathPlayer.settings.volume = volume;                             // อัปเดตระดับเสียงใหม่
+            deathPlayer.settings.volume = volume;                             // อัปเดต volume ใหม่
         }
     }
 }
